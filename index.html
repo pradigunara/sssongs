@@ -2,9 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://*.supabase.co wss://*.supabase.co; img-src 'self' https://imagedelivery.net https://i.scdn.co https://e-cdns-images.dzcdn.net data: blob:; font-src 'self' https://fonts.gstatic.com data:; style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; frame-src https://widget.deezer.com https://open.spotify.com; script-src 'self' https://cdnjs.cloudflare.com 'unsafe-inline';" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      content="width=device-width, initial-scale=1.0"
     />
 
     <!-- Primary Meta Tags -->
@@ -141,7 +142,7 @@
       </p>
     </footer>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script defer integrity="sha384-4V9+JzaMIem5EAvbMs6OfoKpvJdNcFBziY5Pd6bgr8y4tP0VVdjAkZM/iyF3jdzu" crossorigin="anonymous" src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

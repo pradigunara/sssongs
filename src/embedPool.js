@@ -160,7 +160,6 @@ export async function loadAndPlayEmbed(embedId, button) {
     }
 
   } catch (error) {
-    console.error('Failed to load embed:', error);
     button.textContent = 'Load Failed - Retry';
     button.disabled = false;
   }

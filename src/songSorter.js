@@ -25,7 +25,6 @@ function loadProviderData(provider) {
   }
 
   const data = config.data;
-  console.log(`✅ Loaded ${provider} data from bundle`);
   return data?.songs || data.songs || [];
 }
 
@@ -56,20 +55,10 @@ export class SongSorter {
       return providerId !== null && providerId !== undefined && providerId !== '';
     });
 
-    console.log(`🎵 Using ${musicProvider} provider`);
-    console.log(`📊 Song availability: ${availableSongs.length}/${songs.length} songs have valid ${idField}`);
-
-    if (availableSongs.length === 0) {
-      console.error(`❌ No songs available for ${musicProvider} provider!`);
-      console.error(`💡 Try running: npm run fetch-${musicProvider}-triples`);
-    }
 
     // Calculate optimal round system based on song count
     this.systemConfig = calculateHybridSystem(availableSongs.length);
     this.totalRounds = this.systemConfig.totalRounds;
-
-    console.log(`🎯 Hybrid System Configuration:`, this.systemConfig);
-    console.log(`📊 Total rounds needed: ${this.totalRounds}`);
 
     // Initialize songs with score tracking and head-to-head data
     this.songs = availableSongs.map((song) => ({
@@ -134,7 +123,6 @@ export class SongSorter {
       // Shuffle if same-position repetition detected
       if (needsShuffle) {
         selectedSongs = this.shuffleArray([...selectedSongs]);
-        console.log(`🔀 Shuffled song positions to avoid repetition`);
       }
     }
 
@@ -453,9 +441,6 @@ export class SongSorter {
         }
       });
   
-      const remaining = this.songs.filter(song => !song.eliminated).length;
-      console.log(`🎯 Phase 1 complete: ${remaining} songs survived elimination (score > ${threshold})`);
-  
     } else if (phaseInfo.phase === 2 && phaseInfo.phaseRound === phaseInfo.maxPhaseRounds) {
       // End of Phase 2: eliminate to get final head-to-head count
       const survivors = this.songs.filter(song => !song.eliminated);
@@ -468,9 +453,6 @@ export class SongSorter {
         }
       });
   
-      const remaining = this.songs.filter(song => !song.eliminated).length;
-      console.log(`🎯 Phase 2 complete: Top ${remaining} songs advance to head-to-head`);
-  
       // RESET HEAD-TO-HEAD SCORES for pure Phase 3 ranking
       this.songs.forEach(song => {
         if (!song.eliminated) {
@@ -480,8 +462,6 @@ export class SongSorter {
           song.h2hMatches = 0;
         }
       });
-  
-      console.log(`🔄 Head-to-head scores reset for pure Phase 3 ranking`);
     }
   }
 

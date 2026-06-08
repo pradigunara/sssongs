@@ -30,7 +30,6 @@ function App() {
 
   async function initializeGame() {
     try {
-      console.log(`🔄 Loading ${MUSIC_PROVIDER} data...`);
       tripleSSongs = loadProviderData(MUSIC_PROVIDER);
       const newSorter = new SongSorter(tripleSSongs, MUSIC_PROVIDER);
 
@@ -51,7 +50,6 @@ function App() {
         setGameState('finished');
       }
     } catch (error) {
-      console.error('Failed to initialize app:', error);
       setGameState('error');
       setErrorMessage(error.message);
     }
@@ -60,41 +58,32 @@ function App() {
   function handleSongSelect(songId) {
     if (!sorter) return;
 
-    console.log(`🎵 Song selected: ${songId}`);
-
-    // Use CSS custom property for smooth state transitions
-    document.documentElement.style.setProperty('--selection-state', 'transitioning');
-
-    // Trigger staggered fade out animation on current elements
-    const songOptions = document.querySelectorAll(".song-option");
-    songOptions.forEach((option, index) => {
-      option.classList.add(`fade-out-${index + 1}`);
-    });
-
-    // Disable all selection buttons during transition
+    // Disable all selection buttons immediately (visual feedback)
     const selectButtons = document.querySelectorAll(".select-button");
     selectButtons.forEach((button) => {
       button.disabled = true;
       button.style.pointerEvents = "none";
     });
 
-    // Wait for fade out animation to complete, then update content
-    setTimeout(() => {
-      // Update the sorter state
+    // Trigger staggered fade out animation
+    const songOptions = document.querySelectorAll(".song-option");
+    songOptions.forEach((option, index) => {
+      option.classList.add(`fade-out-${index + 1}`);
+    });
+
+    // Yield to browser so it can paint the disabled state + fade-out start,
+    // then update state on the next frame
+    requestAnimationFrame(() => {
       sorter.selectWinner(songId);
-      
+
       const nextRound = sorter.getCurrentRound();
       if (!nextRound) {
-        // Game is finished
         setRankings(sorter.getRankings());
         setGameState('finished');
       } else {
         setCurrentRound(nextRound);
       }
-
-      // Reset selection state
-      document.documentElement.style.setProperty('--selection-state', 'idle');
-    }, 300); // Wait for all fade-out animations to complete
+    });
   }
 
   function handlePlayEmbed(embedId, button) {
@@ -168,7 +157,6 @@ function App() {
 
       document.body.removeChild(shareContainer);
     } catch (error) {
-      console.error("Failed to generate image:", error);
       alert("Failed to generate image. Please try again.");
     } finally {
       if (shareButton) {

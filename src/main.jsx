@@ -1,41 +1,74 @@
-import { render } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
+import { render } from "preact";
+import { useState, useEffect } from "preact/hooks";
 import {
   SongSorter,
   loadProviderData,
-  getProviderEmbedUrl,
-  getProviderIdField,
 } from "./songSorter.js";
-import { GameRound, GameResults, NoSongsError, DataError } from './components.jsx';
-import { embedPool, loadAndPlayEmbed } from './embedPool.js';
+import {
+  CatalogSetup,
+  GameRound,
+  GameResults,
+  NoSongsError,
+  DataError,
+} from "./components.jsx";
+import { defaultSelectedIds, filterSongsBySelection } from "./catalogSelection.js";
+import { shareTopResults } from "./shareResults.js";
+import { embedPool, loadAndPlayEmbed } from "./embedPool.js";
 
-// Configuration - choose ONE provider
 const MUSIC_PROVIDER = "deezer"; // 'spotify' or 'deezer'
 
 const gameContainer = document.getElementById("game-container");
-let tripleSSongs = [];
 
-// Main App Component
 function App() {
-  const [gameState, setGameState] = useState('loading'); // 'loading', 'playing', 'finished', 'error'
+  const [gameState, setGameState] = useState("loading");
+  // loading | setup | playing | finished | error
+  const [allSongs, setAllSongs] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [sorter, setSorter] = useState(null);
   const [currentRound, setCurrentRound] = useState(null);
   const [rankings, setRankings] = useState([]);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [stats, setStats] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [setupError, setSetupError] = useState("");
 
-  // Initialize the app
   useEffect(() => {
-    initializeGame();
+    loadCatalog();
   }, []);
 
-  async function initializeGame() {
+  function loadCatalog() {
     try {
-      tripleSSongs = loadProviderData(MUSIC_PROVIDER);
-      const newSorter = new SongSorter(tripleSSongs, MUSIC_PROVIDER);
-
-      if (newSorter.songs.length === 0) {
-        setGameState('error');
+      const songs = loadProviderData(MUSIC_PROVIDER);
+      if (!songs || songs.length === 0) {
+        setGameState("error");
         setErrorMessage(`No ${MUSIC_PROVIDER} songs found`);
+        return;
+      }
+      setAllSongs(songs);
+      setSelectedIds(defaultSelectedIds(songs));
+      setSetupError("");
+      setGameState("setup");
+    } catch (error) {
+      setGameState("error");
+      setErrorMessage(error.message);
+    }
+  }
+
+  function startGame() {
+    try {
+      setSetupError("");
+      const selected = filterSongsBySelection(allSongs, selectedIds);
+      if (selected.length < 2) {
+        setSetupError("Select at least 2 songs to rank.");
+        setGameState("setup");
+        return;
+      }
+
+      const newSorter = new SongSorter(selected, MUSIC_PROVIDER);
+      if (newSorter.songs.length < 2) {
+        setSetupError(
+          "Need at least 2 songs with playable previews for this provider.",
+        );
+        setGameState("setup");
         return;
       }
 
@@ -43,137 +76,129 @@ function App() {
       const round = newSorter.getCurrentRound();
       if (round) {
         setCurrentRound(round);
-        setGameState('playing');
+        setGameState("playing");
       } else {
-        // Game is already finished
         setRankings(newSorter.getRankings());
-        setGameState('finished');
+        setStats(newSorter.getStats());
+        setGameState("finished");
       }
     } catch (error) {
-      setGameState('error');
-      setErrorMessage(error.message);
+      setSetupError(error.message);
+      setGameState("setup");
     }
   }
 
   function handleSongSelect(songId) {
     if (!sorter) return;
 
-    // Disable all selection buttons immediately (visual feedback)
     const selectButtons = document.querySelectorAll(".select-button");
     selectButtons.forEach((button) => {
       button.disabled = true;
       button.style.pointerEvents = "none";
     });
 
-    // Trigger staggered fade out animation
     const songOptions = document.querySelectorAll(".song-option");
+    const chosenId = String(songId);
     songOptions.forEach((option, index) => {
-      option.classList.add(`fade-out-${index + 1}`);
+      const isChosen = String(option.dataset.songId) === chosenId;
+      option.classList.remove(
+        "fade-in-1",
+        "fade-in-2",
+        "fade-in-3",
+        "fade-out-1",
+        "fade-out-2",
+        "fade-out-3",
+      );
+      if (isChosen) {
+        option.classList.add("is-chosen");
+      } else {
+        option.classList.add("is-not-chosen");
+        // Stagger dim/fade on losers only — winner holds the highlight
+        option.classList.add(`fade-out-${index + 1}`);
+      }
     });
 
-    // Yield to browser so it can paint the disabled state + fade-out start,
-    // then update state on the next frame
-    requestAnimationFrame(() => {
+    // Brief chosen highlight, then advance (keep snappy).
+    const FEEDBACK_MS = 200;
+    window.setTimeout(() => {
       sorter.selectWinner(songId);
 
       const nextRound = sorter.getCurrentRound();
       if (!nextRound) {
         setRankings(sorter.getRankings());
-        setGameState('finished');
+        setStats(sorter.getStats());
+        setGameState("finished");
       } else {
         setCurrentRound(nextRound);
       }
-    });
+    }, FEEDBACK_MS);
   }
 
   function handlePlayEmbed(embedId, button) {
-    // Store current options globally for embed pool access
     window.currentRoundOptions = currentRound?.options;
     loadAndPlayEmbed(embedId, button);
   }
 
   function handleRestart() {
     embedPool.cleanup();
-    initializeGame();
+    setSorter(null);
+    setCurrentRound(null);
+    setRankings([]);
+    setStats(null);
+    // Keep selection; return to checklist
+    setGameState("setup");
   }
 
   async function handleShare() {
+    const topK = stats?.topK ?? 10;
     const shareButton = document.querySelector(".share-button");
+    const originalText = shareButton?.textContent || `📱 Share My Top ${topK}`;
     if (shareButton) {
       shareButton.disabled = true;
       shareButton.textContent = "📸 Generating...";
     }
 
     try {
-      // Create a container for the share image with mobile proportions
-      const shareContainer = document.createElement("div");
-      shareContainer.className = "share-container";
-      shareContainer.style.position = "absolute";
-      shareContainer.style.left = "-9999px";
-      shareContainer.style.fontFamily = "system-ui, -apple-system, sans-serif";
-
-      shareContainer.innerHTML = `
-        <div class="share-content" style="width: 500px; padding: 40px; background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%); color: white; border-radius: 20px; position: relative;">
-          <div style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.2) 0%, transparent 50%), radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.1) 0%, transparent 50%); border-radius: 20px; pointer-events: none;"></div>
-          <div style="position: relative; z-index: 2;">
-            <h2 style="text-align: center; margin-bottom: 30px; font-size: 24px; background: linear-gradient(135deg, #ff6b9d, #c471ed, #12c2e9); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800;">🎵 My tripleS Song Rankings</h2>
-            <div class="rankings-list">
-              ${rankings
-                .slice(0, 10)
-                .map(
-                  (song, index) => `
-                <div style="display: flex; align-items: center; margin-bottom: 12px; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; backdrop-filter: blur(10px);">
-                  <span style="font-weight: bold; margin-right: 15px; background: linear-gradient(135deg, #ff6b9d, #c471ed); background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; min-width: 30px; font-size: 16px;">#${
-                    index + 1
-                  }</span>
-                  <span style="flex: 1; font-size: 14px; color: #ffffff;">${song.title}</span>
-                </div>
-              `,
-                )
-                .join("")}
-            </div>
-            <div style="text-align: center; margin-top: 20px; font-size: 12px; opacity: 0.7; color: #ffffff;">
-              Created with SSS Song Sorter • ${new Date().toLocaleDateString()}
-            </div>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(shareContainer);
-
-      const canvas = await html2canvas(shareContainer.querySelector(".share-content"), {
-        backgroundColor: null,
-        scale: 2,
-      });
-
-      canvas.toBlob((blob) => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `my-triples-song-rankings-${Date.now()}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-      });
-
-      document.body.removeChild(shareContainer);
+      const mode = await shareTopResults({ rankings, topK });
+      if (shareButton && mode === "downloaded") {
+        shareButton.textContent = "✅ Downloaded!";
+        setTimeout(() => {
+          if (shareButton) shareButton.textContent = originalText;
+        }, 1600);
+        return;
+      }
+      if (shareButton && mode === "shared") {
+        shareButton.textContent = "✅ Shared!";
+        setTimeout(() => {
+          if (shareButton) shareButton.textContent = originalText;
+        }, 1600);
+        return;
+      }
     } catch (error) {
-      alert("Failed to generate image. Please try again.");
+      // User cancelled native share sheet — not an error
+      if (error?.name === "AbortError") return;
+      console.error("Share failed:", error);
+      alert("Could not share ranking. Please try again.");
     } finally {
       if (shareButton) {
         shareButton.disabled = false;
-        shareButton.textContent = "📱 Share My Ranking";
+        // Keep success label briefly if already set above
+        if (
+          shareButton.textContent === "📸 Generating..." ||
+          shareButton.textContent === originalText
+        ) {
+          shareButton.textContent = originalText;
+        }
       }
     }
   }
 
   function handleRetry() {
-    setGameState('loading');
-    setErrorMessage('');
-    initializeGame();
+    setErrorMessage("");
+    loadCatalog();
   }
 
-  // Render based on game state
-  if (gameState === 'loading') {
+  if (gameState === "loading") {
     return (
       <div className="loading">
         <div className="spinner"></div>
@@ -182,17 +207,33 @@ function App() {
     );
   }
 
-  if (gameState === 'error') {
-    if (errorMessage.includes('No ')) {
+  if (gameState === "error") {
+    if (errorMessage.includes("No ")) {
       return <NoSongsError provider={MUSIC_PROVIDER} onRetry={handleRetry} />;
     }
     return <DataError message={errorMessage} onRetry={handleRetry} />;
   }
 
-  if (gameState === 'finished') {
+  if (gameState === "setup") {
     return (
-      <GameResults 
+      <CatalogSetup
+        songs={allSongs}
+        selectedIds={selectedIds}
+        onChange={(ids) => {
+          setSelectedIds(ids);
+          setSetupError("");
+        }}
+        onStart={startGame}
+        setupError={setupError}
+      />
+    );
+  }
+
+  if (gameState === "finished") {
+    return (
+      <GameResults
         rankings={rankings}
+        stats={stats}
         onRestart={handleRestart}
         onShare={handleShare}
       />
@@ -209,13 +250,9 @@ function App() {
   );
 }
 
-// Initialize the Preact app
 function initializeApp() {
   render(<App />, gameContainer);
 }
 
-// Utility functions for legacy compatibility
 window.currentRoundOptions = null;
-
-// Initialize the app when the page loads
 initializeApp();

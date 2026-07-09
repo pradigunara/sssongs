@@ -12,12 +12,15 @@
     "fetch-triples": "node scripts/fetchSpotifySongs.js tripleS --ignore-instrumental --min-duration 120",
     "fetch-help": "node scripts/fetchSpotifySongs.js --help",
     "fetch-deezer": "node scripts/fetchDeezerSongs.js",
-    "fetch-deezer-triples": "node scripts/fetchDeezerSongs.js tripleS --ignore-instrumental --min-duration 120",
+    "fetch-deezer-triples": "node scripts/fetchDeezerSongs.js tripleS --ignore-instrumental --ignore-remix --min-duration 120",
     "fetch-deezer-help": "node scripts/fetchDeezerSongs.js --help",
     "compare-catalogs": "node scripts/compareCatalogs.js",
     "merge-song-data": "node scripts/mergeSongData.js",
     "validate-provider": "node scripts/validateProvider.js",
-    "setup-provider": "node scripts/setupProvider.js"
+    "setup-provider": "node scripts/setupProvider.js",
+    "simulate-elo": "node scripts/simulateElo.js",
+    "compare-choices": "node scripts/compareChoicesAccuracy.js",
+    "test": "node --test __tests__/**/*.test.js"
   },
   "devDependencies": {
     "@vitejs/plugin-basic-ssl": "^2.0.0",

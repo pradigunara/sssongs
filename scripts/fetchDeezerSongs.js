@@ -47,6 +47,32 @@ async function getDeezerAlbums(artistId) {
   return albums;
 }
 
+/**
+ * Detect remix / alternate-mix tracks without false-positives like "Mix & Match".
+ * Matches: Remix, RMX, parenthetical mixes, quoted mixes, trailing " Mix".
+ */
+function isRemixTrack(title) {
+  const t = String(title || "").toLowerCase().trim();
+  if (!t) return false;
+
+  // Keep original titles that only use "mix" as part of the name
+  if (/\bmix\s*[&+]/.test(t) || t === "mix & match" || t.includes("mix and match")) {
+    return false;
+  }
+
+  if (/\bremix(ed|es)?\b/.test(t)) return true;
+  if (/\brmx\b/.test(t)) return true;
+  if (/\bre[\s-]?mix\b/.test(t)) return true;
+  // (Seoul Remix: …), (Club Mix), etc.
+  if (/\([^)]*\b(remix|rmx|mix)\b[^)]*\)/.test(t)) return true;
+  // 'Hy-Fluid Mix', "Testarossa Mix"
+  if (/['‘’"][^'‘’"]*\bmix\b[^'‘’"]*['‘’"]/.test(t)) return true;
+  // Trailing alternate mix: "… Mix" / "… Mix-"
+  if (/\s+mix\s*$/.test(t) || /\s+mix\s*[-–:]/.test(t)) return true;
+
+  return false;
+}
+
 async function getDeezerAlbumTracks(albumId) {
   // First get the album info to get cover art
   const albumResponse = await fetch(`https://api.deezer.com/album/${albumId}`);
@@ -174,7 +200,8 @@ async function fetchDeezerSongs(artistName, options = {}) {
             skipTrack = true;
           }
 
-          if (ignoreRemix && (trackName.includes('remix') || trackName.includes('mix'))) {
+          if (ignoreRemix && isRemixTrack(track.title)) {
+            console.log(`   ⏭️  Skipping remix: ${track.title}`);
             filteredTracks++;
             skipTrack = true;
           }

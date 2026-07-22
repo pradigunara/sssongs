@@ -401,9 +401,9 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  /* Avoid transition: all — only animate visual props used by hover/selection */
+  /* Avoid transition: all — only animate visual props used by hover/selection.
+     No transform on the card itself during hover (see hover rules below). */
   transition:
-    transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1),
     border-color 0.35s cubic-bezier(0.4, 0, 0.2, 1),
@@ -623,16 +623,23 @@ h1 {
 .song-option::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 107, 157, 0.1), transparent);
-  transition: left 0.5s ease;
+  inset: 0;
+  border-radius: inherit;
+  /* Static wash — no sliding left that restarts if :hover flickers */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 107, 157, 0.12) 0%,
+    transparent 45%,
+    transparent 100%
+  );
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
 }
 
-/* Hover lift only on real pointer devices — sticky :hover on touch
-   leaves transform on the last tapped card and looks like layout motion. */
+/* Hover only on real pointer devices. Do not translateY on the hover
+   target itself — moving the box under the cursor drops :hover, which
+   undoes the transform and re-triggers hover (rapid blink loop). */
 @media (hover: hover) and (pointer: fine) {
   .song-option:hover {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%);
@@ -641,11 +648,10 @@ h1 {
       0 12px 40px rgba(0, 0, 0, 0.4),
       0 0 30px rgba(255, 107, 157, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
   }
 
   .song-option:hover::before {
-    left: 100%;
+    opacity: 1;
   }
 }
 
